@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { useMediaQuery } from "../hooks/use-media-query";
+import { useOrientationTilt } from "../hooks/use-orientation-tilt";
 import { useTilt } from "../hooks/use-tilt";
 import { loadImage } from "../lib/image";
 import { animateQr } from "../qr/animate";
@@ -16,8 +17,6 @@ import { drawQr, type QrStyle } from "../qr/render-canvas";
 import type { Settings } from "../state/settings";
 
 export const QR_CANVAS_SIZE = 1080;
-const ACCENT = "#C8FF00";
-const FLASH_MS = 200;
 
 interface Props {
   matrix: Matrix;
@@ -41,11 +40,11 @@ export function QrCard({
   const [dragging, setDragging] = useState(false);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const prevMatrix = useRef<Matrix | null>(null);
-  const generation = useRef(0);
-  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
   const hoverCapable = useMediaQuery("(hover: hover) and (pointer: fine)");
-  useTilt(cardRef, hoverCapable);
+  useTilt(areaRef, tiltRef, hoverCapable);
+  useOrientationTilt(tiltRef, !hoverCapable);
 
   useEffect(() => {
     if (!settings.logo) {
@@ -77,7 +76,6 @@ export function QrCard({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    generation.current++;
 
     const finish = () => {
       setImgSrc(canvas.toDataURL("image/png"));
@@ -108,23 +106,6 @@ export function QrCard({
     return cancel;
   }, [matrix, style, canvasRef]);
 
-  useEffect(() => () => clearTimeout(flashTimer.current), []);
-
-  // hover: модули на мгновение перекрашиваются в акцент
-  const flashAccent = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hoverCapable || !settled || isPlaceholder) return;
-    const gen = generation.current;
-    drawQr(canvas, matrix, { ...style, color: ACCENT }, QR_CANVAS_SIZE);
-    setSettled(false);
-    clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => {
-      if (generation.current !== gen) return;
-      drawQr(canvas, matrix, style, QR_CANVAS_SIZE);
-      setSettled(true);
-    }, FLASH_MS);
-  };
-
   const dragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes("Files")) return;
     e.preventDefault();
@@ -139,7 +120,7 @@ export function QrCard({
 
   return (
     <div
-      ref={cardRef}
+      ref={areaRef}
       role="button"
       tabIndex={0}
       aria-label="настройки кода"
@@ -150,26 +131,32 @@ export function QrCard({
           onOpenSettings();
         }
       }}
-      onMouseEnter={flashAccent}
       onDragOver={dragOver}
       onDragLeave={() => setDragging(false)}
       onDrop={drop}
-      className={`relative aspect-square w-[min(78vw,340px,48dvh)] cursor-pointer rounded-[18px] bg-white p-4 shadow-[0_2px_16px_rgba(17,17,16,0.06)] md:w-[380px] ${
-        dragging ? "outline-solid outline-2 outline-offset-4 outline-lime" : ""
-      }`}
+      className="aspect-square w-[min(100cqmin,340px)] cursor-pointer md:w-[380px]"
     >
-      <canvas
-        ref={canvasRef}
-        aria-hidden
-        className={`h-full w-full transition-opacity duration-300 ${isPlaceholder ? "opacity-35" : "opacity-100"}`}
-      />
-      {imgSrc && !isPlaceholder && (
-        <img
-          src={imgSrc}
-          alt="QR-код"
-          className={`absolute inset-4 h-[calc(100%-2rem)] w-[calc(100%-2rem)] ${settled ? "opacity-100" : "opacity-0"}`}
+      <div
+        ref={tiltRef}
+        className={`relative h-full w-full rounded-[18px] bg-white p-4 shadow-[0_2px_16px_rgba(17,17,16,0.06)] ${
+          dragging
+            ? "outline-solid outline-2 outline-offset-4 outline-lime"
+            : ""
+        }`}
+      >
+        <canvas
+          ref={canvasRef}
+          aria-hidden
+          className={`h-full w-full transition-opacity duration-300 ${isPlaceholder ? "opacity-35" : "opacity-100"}`}
         />
-      )}
+        {imgSrc && !isPlaceholder && (
+          <img
+            src={imgSrc}
+            alt="QR-код"
+            className={`absolute inset-4 h-[calc(100%-2rem)] w-[calc(100%-2rem)] transition-opacity duration-200 ${settled ? "opacity-100" : "opacity-0"}`}
+          />
+        )}
+      </div>
     </div>
   );
 }

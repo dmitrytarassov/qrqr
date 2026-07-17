@@ -6,9 +6,10 @@ import { readClipboardText } from "../lib/clipboard";
 interface Props {
   value: string;
   onChange: (value: string) => void;
+  onScan: () => void;
 }
 
-export function TextInput({ value, onChange }: Props) {
+export function TextInput({ value, onChange, onScan }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useAutogrow(ref, value);
 
@@ -57,6 +58,9 @@ export function TextInput({ value, onChange }: Props) {
             Очистить
           </button>
         )}
+        <button type="button" onClick={onScan} className={buttonClass}>
+          Скан
+        </button>
       </div>
     </div>
   );

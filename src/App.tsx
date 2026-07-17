@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 import { ActionsBar } from "./components/ActionsBar";
 import { Header } from "./components/Header";
 import { QrCard } from "./components/QrCard";
+import { ScannerSheet } from "./components/ScannerSheet";
 import { TextInput } from "./components/TextInput";
 import { SettingsContent } from "./components/settings/SettingsContent";
 import { SettingsPopover } from "./components/settings/SettingsPopover";
@@ -11,7 +19,7 @@ import { useMediaQuery } from "./hooks/use-media-query";
 import { copyPngToClipboard } from "./lib/clipboard";
 import { downloadBlob } from "./lib/download";
 import { fileToLogoDataUrl } from "./lib/image";
-import { shareQr } from "./lib/share";
+import { getPlatform } from "./lib/platform";
 import { buildMatrix, type Matrix } from "./qr/matrix";
 import { canvasToBlob } from "./qr/render-canvas";
 import { renderSvg } from "./qr/render-svg";
@@ -34,6 +42,7 @@ export default function App() {
   const [text, setText] = useState("");
   const [settings, dispatch] = useReducer(settingsReducer, defaultSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const lastGood = useRef<Matrix | null>(null);
@@ -65,7 +74,10 @@ export default function App() {
 
   const handleShare = () => {
     const canvas = canvasRef.current;
-    if (canvas) void shareQr(canvas);
+    if (!canvas) return;
+    void getPlatform().then((platform) =>
+      platform.share({ canvas, text: trimmed }),
+    );
   };
   const handlePng = () => {
     const canvas = canvasRef.current;
@@ -85,6 +97,12 @@ export default function App() {
     const canvas = canvasRef.current;
     return canvas ? copyPngToClipboard(canvas) : Promise.resolve(false);
   };
+  // useCallback: сканер держит камеру в эффекте с этой зависимостью,
+  // нестабильная ссылка перезапускала бы стрим на каждом тике плейсхолдера
+  const handleScanResult = useCallback((scanned: string) => {
+    setText(scanned);
+    setScannerOpen(false);
+  }, []);
   const handleLogoFile = (file: File) => {
     void fileToLogoDataUrl(file).then(
       (logo) => dispatch({ type: "logo", logo }),
@@ -106,7 +124,11 @@ export default function App() {
           <div className="grid w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto] items-center gap-16">
             <div className="flex min-w-0 flex-col gap-8">
               <div className="flex flex-col gap-2">
-                <TextInput value={text} onChange={setText} />
+                <TextInput
+                  value={text}
+                  onChange={setText}
+                  onScan={() => setScannerOpen(true)}
+                />
                 {overflowNote}
               </div>
               <ActionsBar
@@ -140,6 +162,11 @@ export default function App() {
             </div>
           </div>
         </main>
+        <ScannerSheet
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onResult={handleScanResult}
+        />
       </div>
     );
   }
@@ -148,10 +175,14 @@ export default function App() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <Header />
       <div className="flex flex-col gap-2 px-5 pt-5">
-        <TextInput value={text} onChange={setText} />
+        <TextInput
+          value={text}
+          onChange={setText}
+          onScan={() => setScannerOpen(true)}
+        />
         {overflowNote}
       </div>
-      <main className="grid min-h-0 flex-1 place-items-center px-5 py-4">
+      <main className="grid min-h-0 flex-1 place-items-center px-5 py-4 [container-type:size]">
         <QrCard
           matrix={display}
           isPlaceholder={isPlaceholder}
@@ -174,6 +205,11 @@ export default function App() {
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)}>
         <SettingsContent settings={settings} dispatch={dispatch} />
       </SettingsSheet>
+      <ScannerSheet
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onResult={handleScanResult}
+      />
     </div>
   );
 }

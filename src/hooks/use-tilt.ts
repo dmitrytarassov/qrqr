@@ -1,34 +1,38 @@
 import { useEffect, type RefObject } from "react";
 
-const MAX_DEG = 2.5;
+import { tiltTransform } from "../lib/tilt";
 
+// слежение и трансформ разнесены по разным элементам: area статична,
+// иначе повёрнутая карточка уезжает из-под курсора и tilt дёргается
 export function useTilt(
-  ref: RefObject<HTMLElement | null>,
+  areaRef: RefObject<HTMLElement | null>,
+  targetRef: RefObject<HTMLElement | null>,
   enabled: boolean,
 ): void {
   useEffect(() => {
-    const el = ref.current;
-    if (!el || !enabled) return;
+    const area = areaRef.current;
+    const target = targetRef.current;
+    if (!area || !target || !enabled) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const move = (e: PointerEvent) => {
-      const rect = el.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width - 0.5;
-      const py = (e.clientY - rect.top) / rect.height - 0.5;
-      el.style.transition = "";
-      el.style.transform = `perspective(900px) rotateX(${(-py * MAX_DEG * 2).toFixed(2)}deg) rotateY(${(px * MAX_DEG * 2).toFixed(2)}deg)`;
+      const rect = area.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      target.style.transition = "";
+      target.style.transform = tiltTransform(x, y);
     };
     const leave = () => {
-      el.style.transition = "transform 0.3s ease";
-      el.style.transform = "";
+      target.style.transition = "transform 0.3s ease";
+      target.style.transform = "";
     };
 
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerleave", leave);
+    area.addEventListener("pointermove", move);
+    area.addEventListener("pointerleave", leave);
     return () => {
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerleave", leave);
+      area.removeEventListener("pointermove", move);
+      area.removeEventListener("pointerleave", leave);
       leave();
     };
-  }, [ref, enabled]);
+  }, [areaRef, targetRef, enabled]);
 }
