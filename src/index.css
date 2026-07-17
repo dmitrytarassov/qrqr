@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #fafaf7;
+  --ink: #111110;
+  --panel: #ffffff;
+  --muted: #8a887f;
+  --faint: #b4b2a9;
+  --line: #d3d1c7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111110;
+    --ink: #fafaf7;
+    --panel: #1c1c1a;
+    --muted: #8a887f;
+    --faint: #6e6c64;
+    --line: #38372f;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-lime: #c8ff00;
+  --color-lime-edge: #9bc400;
+  --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+  }
+
+  ::selection {
+    @apply bg-lime text-[#111110];
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-lime-edge);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
