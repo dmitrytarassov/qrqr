@@ -7,9 +7,10 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   onScan: () => void;
+  onHistory: () => void;
 }
 
-export function TextInput({ value, onChange, onScan }: Props) {
+export function TextInput({ value, onChange, onScan, onHistory }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useAutogrow(ref, value);
 
@@ -60,6 +61,9 @@ export function TextInput({ value, onChange, onScan }: Props) {
         )}
         <button type="button" onClick={onScan} className={buttonClass}>
           Скан
+        </button>
+        <button type="button" onClick={onHistory} className={buttonClass}>
+          История
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,12 +9,13 @@ import {
 } from "react";
 
 import { useMediaQuery } from "../hooks/use-media-query";
-import { useOrientationTilt } from "../hooks/use-orientation-tilt";
-import { useTilt } from "../hooks/use-tilt";
+import { useOrientationDrive } from "../hooks/use-orientation-drive";
+import { usePointerDrive } from "../hooks/use-pointer-drive";
 import { loadImage } from "../lib/image";
+import { gradientPosition, tiltTransform } from "../lib/tilt";
 import { animateQr } from "../qr/animate";
 import type { Matrix } from "../qr/matrix";
-import { drawQr, type QrStyle } from "../qr/render-canvas";
+import { drawQr, drawQrMask, type QrStyle } from "../qr/render-canvas";
 import type { Settings } from "../state/settings";
 
 export const QR_CANVAS_SIZE = 1080;
@@ -36,15 +38,46 @@ export function QrCard({
   onLogoFile,
 }: Props) {
   const [imgSrc, setImgSrc] = useState("");
+  const [maskSrc, setMaskSrc] = useState("");
   const [settled, setSettled] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const prevMatrix = useRef<Matrix | null>(null);
+  const maskCanvas = useRef<HTMLCanvasElement | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
+  const gradientRef = useRef<HTMLDivElement>(null);
   const hoverCapable = useMediaQuery("(hover: hover) and (pointer: fine)");
-  useTilt(areaRef, tiltRef, hoverCapable);
-  useOrientationTilt(tiltRef, !hoverCapable);
+
+  // один вход для обоих источников (мышь / акселерометр):
+  // наклон карточки и позиция градиента едут от одних и тех же (x, y)
+  const drive = useCallback((x: number, y: number) => {
+    const tiltEl = tiltRef.current;
+    if (tiltEl) {
+      tiltEl.style.transition = "";
+      tiltEl.style.transform = tiltTransform(x, y);
+    }
+    const gradientEl = gradientRef.current;
+    if (gradientEl) {
+      gradientEl.style.transition = "";
+      gradientEl.style.backgroundPosition = gradientPosition(x, y);
+    }
+  }, []);
+  const resetDrive = useCallback(() => {
+    const tiltEl = tiltRef.current;
+    if (tiltEl) {
+      tiltEl.style.transition = "transform 0.3s ease";
+      tiltEl.style.transform = "";
+    }
+    const gradientEl = gradientRef.current;
+    if (gradientEl) {
+      gradientEl.style.transition = "background-position 0.3s ease";
+      gradientEl.style.backgroundPosition = "50% 50%";
+    }
+  }, []);
+
+  usePointerDrive(areaRef, hoverCapable, drive, resetDrive);
+  useOrientationDrive(areaRef, !hoverCapable, drive, resetDrive);
 
   useEffect(() => {
     if (!settings.logo) {
@@ -72,13 +105,22 @@ export function QrCard({
     [isPlaceholder, settings.color, settings.shape, logoImg],
   );
 
-  // основной рендер: stagger-переход к новой матрице, затем синк в <img>
+  // основной рендер: stagger-переход к новой матрице, затем синк в <img> и маску
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const finish = () => {
       setImgSrc(canvas.toDataURL("image/png"));
+      maskCanvas.current ??= document.createElement("canvas");
+      drawQrMask(
+        maskCanvas.current,
+        matrix,
+        style.shape,
+        QR_CANVAS_SIZE,
+        Boolean(style.logo),
+      );
+      setMaskSrc(maskCanvas.current.toDataURL("image/png"));
       setSettled(true);
     };
 
@@ -118,6 +160,8 @@ export function QrCard({
     if (file?.type.startsWith("image/")) onLogoFile(file);
   };
 
+  const overlayVisible = settled && !isPlaceholder;
+
   return (
     <div
       ref={areaRef}
@@ -154,6 +198,22 @@ export function QrCard({
             src={imgSrc}
             alt="QR-код"
             className={`absolute inset-4 h-[calc(100%-2rem)] w-[calc(100%-2rem)] transition-opacity duration-200 ${settled ? "opacity-100" : "opacity-0"}`}
+          />
+        )}
+        {maskSrc && (
+          // «плавающий» градиент: CSS-фон больше карточки, маска — модули кода;
+          // pointer-events нет, long-press проходит к <img> ниже
+          <div
+            ref={gradientRef}
+            aria-hidden
+            className={`pointer-events-none absolute inset-4 bg-center bg-[length:250%_250%] transition-opacity duration-200 ${overlayVisible ? "opacity-100" : "opacity-0"}`}
+            style={{
+              backgroundImage: `linear-gradient(135deg, ${settings.color.from}, ${settings.color.to})`,
+              maskImage: `url(${maskSrc})`,
+              WebkitMaskImage: `url(${maskSrc})`,
+              maskSize: "100% 100%",
+              WebkitMaskSize: "100% 100%",
+            }}
           />
         )}
       </div>

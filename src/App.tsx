@@ -9,12 +9,13 @@ import {
 
 import { ActionsBar } from "./components/ActionsBar";
 import { Header } from "./components/Header";
+import { HistoryContent } from "./components/HistoryContent";
 import { QrCard } from "./components/QrCard";
 import { ScannerSheet } from "./components/ScannerSheet";
+import { Sheet } from "./components/Sheet";
 import { TextInput } from "./components/TextInput";
 import { SettingsContent } from "./components/settings/SettingsContent";
 import { SettingsPopover } from "./components/settings/SettingsPopover";
-import { SettingsSheet } from "./components/settings/SettingsSheet";
 import { useMediaQuery } from "./hooks/use-media-query";
 import { copyPngToClipboard } from "./lib/clipboard";
 import { downloadBlob } from "./lib/download";
@@ -23,6 +24,7 @@ import { getPlatform } from "./lib/platform";
 import { buildMatrix, type Matrix } from "./qr/matrix";
 import { canvasToBlob } from "./qr/render-canvas";
 import { renderSvg } from "./qr/render-svg";
+import { useScanHistory } from "./state/scan-history";
 import { defaultSettings, settingsReducer } from "./state/settings";
 
 // пустое состояние: слова не показываем, но кодируем в qr — пасхалка для тех, кто отсканирует
@@ -43,6 +45,8 @@ export default function App() {
   const [settings, dispatch] = useReducer(settingsReducer, defaultSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const history = useScanHistory();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const lastGood = useRef<Matrix | null>(null);
@@ -103,6 +107,41 @@ export default function App() {
     setText(scanned);
     setScannerOpen(false);
   }, []);
+  const handleScan = () => {
+    void getPlatform().then(async (platform) => {
+      // нет нативного сканера — наш ScannerSheet с getUserMedia;
+      // null из нативного = пользователь сам закрыл, шторку не открываем
+      if (!platform.scanQr) {
+        setScannerOpen(true);
+        return;
+      }
+      const scanned = await platform.scanQr();
+      if (scanned) handleScanResult(scanned);
+    });
+  };
+  const handleHistoryPick = (text: string) => {
+    setText(text);
+    setHistoryOpen(false);
+  };
+  const historySheet = (
+    <Sheet
+      open={historyOpen}
+      label="история"
+      onClose={() => setHistoryOpen(false)}
+    >
+      <HistoryContent
+        entries={history.entries}
+        onPick={handleHistoryPick}
+        onRename={history.rename}
+        onRemove={history.remove}
+        onClear={history.clear}
+      />
+    </Sheet>
+  );
+  const onHistory = () => setHistoryOpen(true);
+  const handleSave = () => {
+    if (trimmed) history.add(trimmed);
+  };
   const handleLogoFile = (file: File) => {
     void fileToLogoDataUrl(file).then(
       (logo) => dispatch({ type: "logo", logo }),
@@ -127,7 +166,8 @@ export default function App() {
                 <TextInput
                   value={text}
                   onChange={setText}
-                  onScan={() => setScannerOpen(true)}
+                  onScan={handleScan}
+                  onHistory={onHistory}
                 />
                 {overflowNote}
               </div>
@@ -135,6 +175,7 @@ export default function App() {
                 variant="desktop"
                 disabled={isPlaceholder}
                 onShare={handleShare}
+                onSave={handleSave}
                 onPng={handlePng}
                 onSvg={handleSvg}
                 onCopy={handleCopy}
@@ -167,6 +208,7 @@ export default function App() {
           onClose={() => setScannerOpen(false)}
           onResult={handleScanResult}
         />
+        {historySheet}
       </div>
     );
   }
@@ -178,7 +220,8 @@ export default function App() {
         <TextInput
           value={text}
           onChange={setText}
-          onScan={() => setScannerOpen(true)}
+          onScan={handleScan}
+          onHistory={onHistory}
         />
         {overflowNote}
       </div>
@@ -197,19 +240,25 @@ export default function App() {
           variant="mobile"
           disabled={isPlaceholder}
           onShare={handleShare}
+          onSave={handleSave}
           onPng={handlePng}
           onSvg={handleSvg}
           onCopy={handleCopy}
         />
       </footer>
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+      <Sheet
+        open={settingsOpen}
+        label="настройки"
+        onClose={() => setSettingsOpen(false)}
+      >
         <SettingsContent settings={settings} dispatch={dispatch} />
-      </SettingsSheet>
+      </Sheet>
       <ScannerSheet
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onResult={handleScanResult}
       />
+      {historySheet}
     </div>
   );
 }

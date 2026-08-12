@@ -1,9 +1,9 @@
 import type { Matrix } from "./matrix";
 
-import type { ModuleShape } from "../state/settings";
+import type { ColorPreset, ModuleShape } from "../state/settings";
 
 export interface QrStyle {
-  color: string;
+  color: ColorPreset;
   shape: ModuleShape;
   logo: HTMLImageElement | null;
 }
@@ -36,6 +36,48 @@ export function isFinder(row: number, col: number, count: number): boolean {
   );
 }
 
+function paintCode(
+  ctx: CanvasRenderingContext2D,
+  matrix: Matrix,
+  shape: ModuleShape,
+  size: number,
+  scaleAt?: ScaleAt,
+): void {
+  const count = matrix.length;
+  const module = size / (count + QUIET_ZONE * 2);
+  const offset = QUIET_ZONE * module;
+
+  for (const [row, col] of [
+    [0, 0],
+    [0, count - 7],
+    [count - 7, 0],
+  ]) {
+    drawFinder(
+      ctx,
+      offset + col * module,
+      offset + row * module,
+      module,
+      shape,
+    );
+  }
+
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (!matrix[row][col] || isFinder(row, col, count)) continue;
+      const scale = scaleAt ? scaleAt(row, col) : 1;
+      if (scale <= 0.01) continue;
+      drawModule(
+        ctx,
+        offset + col * module,
+        offset + row * module,
+        module,
+        shape,
+        scale,
+      );
+    }
+  }
+}
+
 export function drawQr(
   canvas: HTMLCanvasElement,
   matrix: Matrix,
@@ -51,42 +93,42 @@ export function drawQr(
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, size, size);
 
-  const count = matrix.length;
-  const module = size / (count + QUIET_ZONE * 2);
-  const offset = QUIET_ZONE * module;
-
-  ctx.fillStyle = style.color;
-  for (const [row, col] of [
-    [0, 0],
-    [0, count - 7],
-    [count - 7, 0],
-  ]) {
-    drawFinder(
-      ctx,
-      offset + col * module,
-      offset + row * module,
-      module,
-      style.shape,
-    );
-  }
-
-  for (let row = 0; row < count; row++) {
-    for (let col = 0; col < count; col++) {
-      if (!matrix[row][col] || isFinder(row, col, count)) continue;
-      const scale = scaleAt ? scaleAt(row, col) : 1;
-      if (scale <= 0.01) continue;
-      drawModule(
-        ctx,
-        offset + col * module,
-        offset + row * module,
-        module,
-        style.shape,
-        scale,
-      );
-    }
-  }
+  // один диагональный градиент на весь код: модули берут свой локальный цвет
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, style.color.from);
+  gradient.addColorStop(1, style.color.to);
+  ctx.fillStyle = gradient;
+  paintCode(ctx, matrix, style.shape, size, scaleAt);
 
   if (style.logo) drawLogo(ctx, style.logo, size);
+}
+
+// альфа-маска модулей на прозрачном фоне — для CSS-градиента поверх кода;
+// зона логотипа выбивается, чтобы градиент не лёг на белую подложку
+export function drawQrMask(
+  canvas: HTMLCanvasElement,
+  matrix: Matrix,
+  shape: ModuleShape,
+  size: number,
+  hasLogo: boolean,
+): void {
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.fillStyle = "#000000";
+  paintCode(ctx, matrix, shape, size);
+
+  if (hasLogo) {
+    const box = size * LOGO_BOX;
+    const boxOffset = (size - box) / 2;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.roundRect(boxOffset, boxOffset, box, box, box * LOGO_BOX_RADIUS);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
 }
 
 function drawFinder(

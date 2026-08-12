@@ -25,3 +25,6 @@ dist-ssr
 
 .claude
 .idea
+
+# симлинк на память Claude (вне репо)
+/memory

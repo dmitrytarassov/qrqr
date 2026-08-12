@@ -10,13 +10,16 @@ import {
   QUIET_ZONE,
 } from "./render-canvas";
 
-import type { ModuleShape } from "../state/settings";
+import type { ColorPreset, ModuleShape } from "../state/settings";
 
 export interface SvgStyle {
-  color: string;
+  color: ColorPreset;
   shape: ModuleShape;
   logo: string | null;
 }
+
+const GRADIENT_ID = "qrqr-gradient";
+const FILL = `url(#${GRADIENT_ID})`;
 
 const f = (n: number) => String(Math.round(n * 1000) / 1000);
 
@@ -42,6 +45,10 @@ export function renderSvg(matrix: Matrix, style: SvgStyle): string {
   const total = count + QUIET_ZONE * 2;
   const parts: string[] = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}">`,
+    // userSpaceOnUse: один градиент на весь код, а не на каждый модуль отдельно
+    `<defs><linearGradient id="${GRADIENT_ID}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${total}" y2="${total}">` +
+      `<stop offset="0" stop-color="${style.color.from}"/>` +
+      `<stop offset="1" stop-color="${style.color.to}"/></linearGradient></defs>`,
     `<rect width="${total}" height="${total}" fill="#FFFFFF"/>`,
   ];
 
@@ -54,11 +61,11 @@ export function renderSvg(matrix: Matrix, style: SvgStyle): string {
     const x = QUIET_ZONE + col;
     const y = QUIET_ZONE + row;
     parts.push(
-      `<path fill="${style.color}" fill-rule="evenodd" d="${
+      `<path fill="${FILL}" fill-rule="evenodd" d="${
         roundRectPath(x, y, 7, 7, 7 * finderRadius) +
         roundRectPath(x + 1, y + 1, 5, 5, 5 * finderRadius)
       }"/>`,
-      `<path fill="${style.color}" d="${roundRectPath(x + 2, y + 2, 3, 3, 3 * finderRadius)}"/>`,
+      `<path fill="${FILL}" d="${roundRectPath(x + 2, y + 2, 3, 3, 3 * finderRadius)}"/>`,
     );
   }
 
@@ -82,7 +89,7 @@ export function renderSvg(matrix: Matrix, style: SvgStyle): string {
     }
   }
   const crisp = style.shape === "square" ? ' shape-rendering="crispEdges"' : "";
-  parts.push(`<g fill="${style.color}"${crisp}>${cells.join("")}</g>`);
+  parts.push(`<g fill="${FILL}"${crisp}>${cells.join("")}</g>`);
 
   if (style.logo) {
     const box = total * LOGO_BOX;

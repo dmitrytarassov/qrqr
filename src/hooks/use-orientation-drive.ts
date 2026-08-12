@@ -1,25 +1,25 @@
 import { useEffect, type RefObject } from "react";
 
-import { tiltTransform } from "../lib/tilt";
-
 // наклон телефона на ±15° от нейтрального хвата даёт максимум эффекта
 const RANGE_DEG = 15;
 // нейтральный хват никто не держит ровно — медленно подстраиваем базу,
 // чтобы карточка реагировала на движение, а не на позу
 const BASELINE_ALPHA = 0.02;
-const MAX_DEG = 3;
 
 type OrientationEventCtor = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<string>;
 };
 
-export function useOrientationTilt(
-  targetRef: RefObject<HTMLElement | null>,
+// источник «наведения» с акселерометра: тот же контракт, что у
+// use-pointer-drive — смещение [-0.5, 0.5] по обеим осям
+export function useOrientationDrive(
+  areaRef: RefObject<HTMLElement | null>,
   enabled: boolean,
+  onMove: (x: number, y: number) => void,
+  onReset: () => void,
 ): void {
   useEffect(() => {
-    const target = targetRef.current;
-    if (!target || !enabled) return;
+    if (!areaRef.current || !enabled) return;
     if (typeof DeviceOrientationEvent === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -36,9 +36,10 @@ export function useOrientationTilt(
         baseGamma === null
           ? e.gamma
           : baseGamma + (e.gamma - baseGamma) * BASELINE_ALPHA;
-      const x = (e.gamma - baseGamma) / (RANGE_DEG * 2);
-      const y = (e.beta - baseBeta) / (RANGE_DEG * 2);
-      target.style.transform = tiltTransform(x, y, MAX_DEG);
+      onMove(
+        (e.gamma - baseGamma) / (RANGE_DEG * 2),
+        (e.beta - baseBeta) / (RANGE_DEG * 2),
+      );
     };
 
     const attach = () =>
@@ -65,7 +66,7 @@ export function useOrientationTilt(
     return () => {
       window.removeEventListener("pointerdown", askPermission);
       window.removeEventListener("deviceorientation", onOrientation);
-      target.style.transform = "";
+      onReset();
     };
-  }, [targetRef, enabled]);
+  }, [areaRef, enabled, onMove, onReset]);
 }

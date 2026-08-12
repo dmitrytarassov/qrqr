@@ -6,6 +6,7 @@ interface Props {
   variant: "mobile" | "desktop";
   disabled: boolean;
   onShare: () => void;
+  onSave: () => void;
   onPng: () => void;
   onSvg: () => void;
   onCopy: () => Promise<boolean>;
@@ -15,12 +16,22 @@ export function ActionsBar({
   variant,
   disabled,
   onShare,
+  onSave,
   onPng,
   onSvg,
   onCopy,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const save = () => {
+    onSave();
+    setSaved(true);
+    clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1500);
+  };
 
   const copy = async (e: MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -37,6 +48,14 @@ export function ActionsBar({
   if (variant === "desktop") {
     return (
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={save}
+          className={quiet}
+        >
+          {saved ? "сохранено" : "Сохранить"}
+        </button>
         <button
           type="button"
           disabled={disabled}
@@ -70,15 +89,25 @@ export function ActionsBar({
 
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onShare}
-        className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#111110] py-4 text-[15px] font-medium text-[#FAFAF7] transition-opacity disabled:opacity-40 dark:border dark:border-white/10"
-      >
-        <ShareIcon />
-        Поделиться
-      </button>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onShare}
+          className="flex flex-1 items-center justify-center gap-2.5 rounded-2xl bg-[#111110] py-4 text-[15px] font-medium text-[#FAFAF7] transition-opacity disabled:opacity-40 dark:border dark:border-white/10"
+        >
+          <ShareIcon />
+          Поделиться
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={save}
+          className="shrink-0 rounded-2xl border border-line px-5 text-[14px] text-muted transition-colors hover:border-lime-edge hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+        >
+          {saved ? "сохранено" : "Сохранить"}
+        </button>
+      </div>
       <div className="flex items-center justify-center gap-2">
         <button
           type="button"

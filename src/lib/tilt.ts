@@ -12,3 +12,10 @@ export function tiltTransform(
   const rotateY = (clamp(x) * maxDeg * 2).toFixed(2);
   return `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
 }
+
+// позиция «плавающего» градиента (background-size > 100%): центр — 50% 50%
+export function gradientPosition(x: number, y: number): string {
+  const px = ((clamp(x) + 0.5) * 100).toFixed(1);
+  const py = ((clamp(y) + 0.5) * 100).toFixed(1);
+  return `${px}% ${py}%`;
+}
